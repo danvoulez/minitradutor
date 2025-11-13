@@ -1,27 +1,13 @@
-/**
- * API HTTP do minitradutor - POST /translate
- * Parte do projeto minitradutor - LogLine Foundation
- */
+// api.ts
 
-import { getConfig, validateConfig, printConfig } from "./config.ts";
-import { translateText } from "./translate.ts";
-import { buildContract, saveLedgerEntry } from "./contract.ts";
-import { signContract, getPrivateKeyFromEnv } from "./signer.ts";
+import { OpenAIProvider } from "./providers/openai.ts";
+import { translateRequest } from "./translate.ts";
+import { TranslationRequestInput } from "./providers/types.ts";
 
-// ============================================================================
-// TIPOS
-// ============================================================================
-
-interface TranslateRequest {
-  source_language: string;
-  target_language: string;
-  source_text: string;
-  method?: "human" | "machine" | "hybrid";
-  workflow?: string;
-  flow?: string;
-  tenant_id?: string;
-  translator?: string;
-}
+// Inicializa o provider (pode ser configurado via env vars)
+const provider = new OpenAIProvider({
+  apiKey: Deno.env.get("OPENAI_API_KEY") ?? ""
+});
 
 interface ErrorResponse {
   error: string;
@@ -33,7 +19,7 @@ interface ErrorResponse {
 // VALIDAÇÃO DE REQUEST
 // ============================================================================
 
-function validateTranslateRequest(body: unknown): body is TranslateRequest {
+function validateTranslateRequest(body: unknown): body is TranslationRequestInput {
   if (typeof body !== "object" || body === null) {
     throw new Error("Request body must be a JSON object");
   }
@@ -50,6 +36,18 @@ function validateTranslateRequest(body: unknown): body is TranslateRequest {
 
   if (!req.source_text || typeof req.source_text !== "string") {
     throw new Error("source_text is required and must be a string");
+  }
+
+  if (!req.workflow || typeof req.workflow !== "string") {
+    throw new Error("workflow is required and must be a string");
+  }
+
+  if (!req.flow || typeof req.flow !== "string") {
+    throw new Error("flow is required and must be a string");
+  }
+
+  if (!req.tenant_id || typeof req.tenant_id !== "string") {
+    throw new Error("tenant_id is required and must be a string");
   }
 
   if (req.method && !["human", "machine", "hybrid"].includes(req.method as string)) {
@@ -69,52 +67,22 @@ function validateTranslateRequest(body: unknown): body is TranslateRequest {
 
 async function handleTranslate(request: Request): Promise<Response> {
   try {
-    // Parse request body
     const body = await request.json();
 
     // Valida request
     validateTranslateRequest(body);
-    const req = body as TranslateRequest;
+    const input = body as TranslationRequestInput;
 
-    // Pega configuração
-    const config = getConfig();
-
-    // Traduz
-    const { translated_text, confidence } = await translateText({
-      source_language: req.source_language,
-      target_language: req.target_language,
-      source_text: req.source_text,
-    });
-
-    // Constrói contrato
-    const contract = await buildContract({
-      workflow: req.workflow || config.defaultWorkflow,
-      flow: req.flow || config.defaultFlow,
-      source_language: req.source_language,
-      target_language: req.target_language,
-      source_text: req.source_text,
-      translated_text,
-      method: req.method || "machine",
-      confidence,
-      tenant_id: req.tenant_id || config.defaultTenantId,
-      translator: req.translator,
-    });
-
-    // Assina se habilitado
-    if (config.enableSigning) {
-      const privateKey = await getPrivateKeyFromEnv();
-      if (privateKey) {
-        const signature = await signContract(contract, privateKey);
-        contract.provenance.signature = signature;
-      }
+    // Define defaults se não fornecidos
+    if (!input.method) {
+      input.method = "machine";
     }
 
-    // Salva no ledger
-    await saveLedgerEntry(contract, config.ledgerPath);
+    // Traduz via pipeline
+    const envelope = await translateRequest(provider, input);
 
-    // Retorna resposta
     return new Response(
-      JSON.stringify({ contract }, null, 2),
+      JSON.stringify(envelope, null, 2),
       {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -147,19 +115,6 @@ async function handleHealth(_request: Request): Promise<Response> {
     }),
     {
       status: 200,
-      headers: { "Content-Type": "application/json" },
-    }
-  );
-}
-
-async function handleNotFound(_request: Request): Promise<Response> {
-  return new Response(
-    JSON.stringify({
-      error: "NotFound",
-      message: "Endpoint not found. Available endpoints: POST /translate, GET /health",
-    }),
-    {
-      status: 404,
       headers: { "Content-Type": "application/json" },
     }
   );
@@ -209,7 +164,16 @@ async function handleRequest(request: Request): Promise<Response> {
       }
     );
   } else {
-    response = await handleNotFound(request);
+    response = new Response(
+      JSON.stringify({
+        error: "NotFound",
+        message: "Endpoint not found. Available endpoints: POST /translate, GET /health",
+      }),
+      {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 
   // Add CORS headers to response
@@ -229,27 +193,16 @@ async function handleRequest(request: Request): Promise<Response> {
 // SERVIDOR
 // ============================================================================
 
-/**
- * Inicia o servidor HTTP
- */
-export async function startServer(): Promise<void> {
-  // Valida configuração
-  try {
-    validateConfig();
-  } catch (error) {
-    console.error("Configuration error:", error.message);
-    Deno.exit(1);
-  }
-
-  const config = getConfig();
+if (import.meta.main) {
+  const port = parseInt(Deno.env.get("PORT") ?? "8000");
+  const host = Deno.env.get("HOST") ?? "0.0.0.0";
 
   console.log("\n🌐 Starting minitradutor API server...\n");
-  printConfig();
 
-  const server = Deno.serve(
+  Deno.serve(
     {
-      port: config.port,
-      hostname: config.host,
+      port,
+      hostname: host,
       onListen: ({ port, hostname }) => {
         console.log(`\n✅ Server running at http://${hostname}:${port}`);
         console.log(`\nEndpoints:`);
@@ -260,14 +213,4 @@ export async function startServer(): Promise<void> {
     },
     handleRequest
   );
-
-  await server.finished;
-}
-
-// ============================================================================
-// MAIN (se executado diretamente)
-// ============================================================================
-
-if (import.meta.main) {
-  await startServer();
 }
