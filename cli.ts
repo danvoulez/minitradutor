@@ -5,8 +5,9 @@
 
 import { parse } from "https://deno.land/std@0.208.0/flags/mod.ts";
 import { getConfig, validateConfig, printConfig, createEnvExample } from "./config.ts";
-import { translateText } from "./translate.ts";
-import { buildContract, saveLedgerEntry } from "./contract.ts";
+import { translateRequest } from "./translate.ts";
+import { TranslationRequestInput } from "./providers/types.ts";
+import { OpenAIProvider } from "./providers/openai.ts";
 import { signContract, getPrivateKeyFromEnv, generateKeyPair, exportPrivateKey, exportPublicKey } from "./signer.ts";
 
 // ============================================================================
@@ -149,73 +150,86 @@ async function commandTranslate(args: CliArgs): Promise<void> {
 
   const config = getConfig();
 
+  // Inicializa provider (usando OpenAI como padrão, pode ser expandido depois)
+  const apiKey = config.openaiApiKey || Deno.env.get("OPENAI_API_KEY") || "";
+  if (!apiKey && config.llmProvider === "openai") {
+    console.error("❌ Error: OPENAI_API_KEY is required. Set it in your environment or .env file");
+    Deno.exit(1);
+  }
+
+  const provider = new OpenAIProvider({ apiKey });
+
   console.log("\n🔄 Translating...\n");
 
   try {
-    // Tradução simples
-    const { translated_text, confidence } = await translateText({
+    // Monta o input do pipeline
+    const input: TranslationRequestInput = {
       source_language: args.from,
       target_language: args.to,
       source_text: sourceText,
-    });
-
-    console.log(`✅ Translation completed with confidence: ${(confidence * 100).toFixed(1)}%\n`);
-
-    // Constrói contrato
-    const contract = await buildContract({
       workflow: args.workflow || config.defaultWorkflow,
       flow: args.flow || config.defaultFlow,
-      source_language: args.from,
-      target_language: args.to,
-      source_text: sourceText,
-      translated_text,
-      method,
-      confidence,
       tenant_id: args.tenant || config.defaultTenantId,
+      method,
       translator: args.translator,
-    });
+    };
 
-    // Assina se habilitado
-    if (config.enableSigning) {
-      const privateKey = await getPrivateKeyFromEnv();
-      if (privateKey) {
-        const signature = await signContract(contract, privateKey);
-        contract.provenance.signature = signature;
-        console.log("🔐 Contract signed\n");
-      }
-    }
+    // Usa o pipeline central (igual à API)
+    const envelope = await translateRequest(provider, input);
+    const contract = envelope.contract;
 
-    // Salva no ledger
-    await saveLedgerEntry(contract, config.ledgerPath);
-    console.log(`💾 Contract saved to: ${config.ledgerPath}\n`);
+    console.log(`✅ Translation completed with confidence: ${(contract.confidence * 100).toFixed(1)}%\n`);
+    console.log(`💾 Contract saved to ledger\n`);
 
-    // Imprime contrato
+    // Imprime resumo do contrato
     console.log("📜 TRANSLATION CONTRACT:");
     console.log("─".repeat(60));
-    console.log(JSON.stringify(contract, null, 2));
+    console.log(`ID:          ${contract.id}`);
+    console.log(`Workflow:    ${contract.workflow} / ${contract.flow}`);
+    console.log(`Translation: ${contract.source_language} → ${contract.target_language}`);
+    console.log(`Method:      ${contract.method}`);
+    console.log(`Confidence:  ${(contract.confidence * 100).toFixed(1)}%`);
+    console.log(`\nTranslated text:`);
+    console.log(contract.translated_text);
     console.log("─".repeat(60));
 
     // Modo roundtrip
     if (args.mode === "roundtrip") {
       console.log("\n🔄 Performing roundtrip translation...\n");
 
-      const { translated_text: backTranslated, confidence: backConfidence } = await translateText({
+      const backInput: TranslationRequestInput = {
         source_language: args.to,
         target_language: args.from,
-        source_text: translated_text,
-      });
+        source_text: contract.translated_text,
+        workflow: args.workflow || config.defaultWorkflow,
+        flow: `${args.flow || config.defaultFlow}_roundtrip`,
+        tenant_id: args.tenant || config.defaultTenantId,
+        method,
+        translator: args.translator,
+      };
+
+      const backEnvelope = await translateRequest(provider, backInput);
+      const backContract = backEnvelope.contract;
 
       console.log("🔙 ROUNDTRIP RESULT:");
       console.log("─".repeat(60));
-      console.log(`Original:       ${sourceText}`);
-      console.log(`Forward:        ${translated_text}`);
-      console.log(`Back:           ${backTranslated}`);
-      console.log(`Back confidence: ${(backConfidence * 100).toFixed(1)}%`);
+      console.log(`Original:        ${sourceText}`);
+      console.log(`Forward:         ${contract.translated_text}`);
+      console.log(`Back:            ${backContract.translated_text}`);
+      console.log(`Back confidence: ${(backContract.confidence * 100).toFixed(1)}%`);
+      console.log(`Back ID:         ${backContract.id}`);
       console.log("─".repeat(60));
 
       // Calcula fidelidade (heurística simples)
-      const fidelity = calculateFidelity(sourceText, backTranslated);
+      const fidelity = calculateFidelity(sourceText, backContract.translated_text);
       console.log(`\n📊 Semantic fidelity score: ${(fidelity * 100).toFixed(1)}%\n`);
+      console.log(`💾 Both contracts saved to ledger\n`);
+    }
+
+    // Opção: imprimir JSON completo
+    if (Deno.env.get("MINITRADUTOR_VERBOSE") === "true") {
+      console.log("\n📄 Full contract JSON:");
+      console.log(JSON.stringify(envelope, null, 2));
     }
   } catch (error) {
     console.error(`\n❌ Translation failed: ${error.message}\n`);
