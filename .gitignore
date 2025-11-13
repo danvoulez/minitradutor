@@ -1,0 +1,39 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Output
+output/
+*.ndjson
+
+# Deno
+deno.lock
+
+# Node (se usar Node.js)
+node_modules/
+package-lock.json
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Keys (nunca commitar chaves privadas!)
+*.key
+*.pem
+private_key*
+
+# Logs
+*.log
+logs/
+
+# Test artifacts
+tests/test_*.ndjson

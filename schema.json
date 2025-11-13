@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://logline.foundation/schemas/translation_contract.json",
+  "title": "Translation Contract",
+  "description": "Contrato computável de tradução universal - LogLine minitradutor",
+  "type": "object",
+  "required": [
+    "id",
+    "workflow",
+    "flow",
+    "source_language",
+    "target_language",
+    "source_text",
+    "translated_text",
+    "method",
+    "confidence",
+    "provenance"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Identificador único do contrato (ex: trans_f2a7c8)",
+      "pattern": "^trans_[a-zA-Z0-9]+$"
+    },
+    "workflow": {
+      "type": "string",
+      "description": "Nome do workflow que gerou a tradução",
+      "minLength": 1
+    },
+    "flow": {
+      "type": "string",
+      "description": "Nome do flow específico dentro do workflow",
+      "minLength": 1
+    },
+    "source_language": {
+      "type": "string",
+      "description": "Código da linguagem de origem (ISO639 ou linguagem técnica como 'python', 'typescript')",
+      "minLength": 1
+    },
+    "target_language": {
+      "type": "string",
+      "description": "Código da linguagem de destino",
+      "minLength": 1
+    },
+    "source_text": {
+      "type": "string",
+      "description": "Texto original a ser traduzido",
+      "minLength": 1
+    },
+    "translated_text": {
+      "type": "string",
+      "description": "Texto traduzido",
+      "minLength": 1
+    },
+    "translator": {
+      "type": "string",
+      "description": "Identificador do tradutor (obrigatório se method = 'human' ou 'hybrid')"
+    },
+    "method": {
+      "type": "string",
+      "description": "Método de tradução utilizado",
+      "enum": ["human", "machine", "hybrid"]
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Score de confiança da tradução",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Bloco de proveniência e rastreabilidade",
+      "required": ["timestamp", "tenant_id", "signature"],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "description": "Timestamp ISO8601 em UTC",
+          "format": "date-time"
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Identificador do tenant/organização",
+          "minLength": 1
+        },
+        "signature": {
+          "type": "string",
+          "description": "Assinatura Ed25519 do contrato (pode ser vazio se desativado)"
+        }
+      }
+    }
+  }
+}
