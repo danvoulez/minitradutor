@@ -1,0 +1,45 @@
+{
+  "name": "@logline/minitradutor",
+  "version": "0.1.0-alpha",
+  "exports": {
+    ".": "./mod.ts",
+    "./api": "./api.ts",
+    "./cli": "./cli.ts",
+    "./contract": "./contract.ts",
+    "./translate": "./translate.ts",
+    "./config": "./config.ts",
+    "./signer": "./signer.ts"
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-read --allow-write --allow-env api.ts",
+    "cli": "deno run --allow-read --allow-write --allow-env --allow-net cli.ts",
+    "test": "deno test --allow-read --allow-write --allow-env tests/",
+    "dev": "deno run --watch --allow-net --allow-read --allow-write --allow-env api.ts",
+    "fmt": "deno fmt",
+    "lint": "deno lint",
+    "check": "deno check **/*.ts"
+  },
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "imports": {
+    "ajv": "npm:ajv@8.12.0",
+    "ajv-formats": "npm:ajv-formats@2.1.1"
+  }
+}
