@@ -236,6 +236,100 @@ Entrada → Tradução → Contrato → Assinatura → Ledger → Observabilidad
 
 ---
 
+## 🚦 Fluxo de Demo (Quick Start)
+
+### 1. Configurar ambiente
+
+```bash
+# Clone o repositório
+git clone <repo-url>
+cd minitradutor
+
+# Crie o arquivo .env com suas credenciais
+cp .env.example .env
+
+# Edite .env e adicione sua API key
+# LLM_PROVIDER=openai
+# OPENAI_API_KEY=sk-...
+```
+
+### 2. Testar via API HTTP
+
+```bash
+# Inicie o servidor
+deno task dev
+
+# Em outro terminal, faça uma tradução
+curl -X POST http://localhost:8000/translate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_language": "en",
+    "target_language": "pt",
+    "source_text": "Hello world",
+    "workflow": "demo",
+    "flow": "test_translation",
+    "tenant_id": "demo_user",
+    "method": "machine"
+  }'
+
+# Verifique o contrato salvo
+cat output/contracts.ndjson
+```
+
+### 3. Testar via CLI
+
+```bash
+# Tradução simples
+deno task cli translate \
+  --from en \
+  --to pt \
+  --input "Hello world"
+
+# Tradução de código
+deno task cli translate \
+  --from python \
+  --to pt \
+  --input "def greet(): print('Hello')"
+
+# Modo roundtrip (ida e volta)
+deno task cli translate \
+  --from pt \
+  --to en \
+  --input "O sistema é auditável" \
+  --mode roundtrip
+
+# Ver contrato completo em JSON
+MINITRADUTOR_VERBOSE=true deno task cli translate \
+  --from en \
+  --to pt \
+  --input "test"
+```
+
+### 4. Verificar ledger
+
+```bash
+# Ver todos os contratos salvos
+cat output/contracts.ndjson | jq '.'
+
+# Contar contratos
+wc -l output/contracts.ndjson
+
+# Ver último contrato
+tail -n 1 output/contracts.ndjson | jq '.'
+```
+
+### 5. Rodar testes
+
+```bash
+# Rodar suite de testes
+deno task test
+
+# Verificar tipos
+deno check **/*.ts
+```
+
+---
+
 ## ✅ Regras obrigatórias
 
 - Toda tradução gera:
