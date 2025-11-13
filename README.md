@@ -1,140 +1,76 @@
-# 🌐 Minitradutor
+# minitradutor — tradução universal com contrato computável
 
-> Universal Translation Contract Builder
+🪪 **Project:** LogLine // minitradutor
+🏷️ **Version:** v0.1-alpha
+🔐 **Owner:** LogLine Foundation / VoulezVous
+🌐 **License:** Apache 2.0 (ou dual com LogLineID)
 
-**Minitradutor** é uma API computável de tradução universal, capaz de receber qualquer linguagem escrita (natural ou computacional) como entrada e reexpressar seu conteúdo em outra linguagem, com mínima perda semântica.
+O **minitradutor** é uma API computável de tradução universal.
+Ele recebe qualquer linguagem escrita (natural ou computacional) como entrada e produz:
 
-Parte do ecossistema [LogLine Foundation](https://logline.foundation).
+1. Um texto traduzido com **mínima perda semântica**
+2. Um **translation_contract** completo, pronto para auditoria, replay e verificação local
+3. Um registro append-only em `contracts.ndjson`, no estilo JSON✯Atomic
 
----
-
-## 📜 Filosofia
-
-> **Nenhuma tradução é "só um texto": tudo é span / contrato.**
-
-Cada tradução no minitradutor gera um **Translation Contract** completo, que é:
-
-- ✅ **Computável** - validado por schema, reexecutável, fácil de auditar
-- 🔍 **Rastreável** - tem workflow, flow, IDs, timestamps, assinatura opcional
-- 📚 **Ledger-first** - cada contrato é uma linha em NDJSON, estilo JSON✯Atomic
+> No minitradutor, nenhuma tradução é "só um texto": **tudo é contrato**.
 
 ---
 
-## 🚀 Features
+## ✨ Funcionalidades
 
-- ✨ Tradução entre linguagens naturais (pt, en, ja, etc.)
-- 💻 Tradução de código (python → pt, javascript → en, etc.)
-- 📝 Contratos de tradução totalmente estruturados
-- 🔐 Assinatura digital Ed25519 opcional
-- 📊 Ledger NDJSON append-only para auditoria
-- 🌐 API HTTP REST (`POST /translate`)
-- ⌨️ CLI completa com múltiplos comandos
-- 🔄 Modo roundtrip para teste de fidelidade
-- 🧪 Testes automatizados
-- 🎯 Suporte para múltiplos providers LLM (Anthropic, OpenAI)
-
----
-
-## 📦 Instalação
-
-### Requisitos
-
-- [Deno](https://deno.land/) 1.37+ (recomendado)
-- Ou Node.js 18+ (compatível)
-
-### Clonar o repositório
-
-```bash
-git clone https://github.com/logline/minitradutor.git
-cd minitradutor
-```
-
-### Configurar ambiente
-
-```bash
-# Criar arquivo de configuração
-deno task cli init
-
-# Copiar e editar .env
-cp .env.example .env
-```
-
-Edite o `.env` com suas configurações:
-
-```bash
-# Escolha o provider
-LLM_PROVIDER=anthropic  # ou openai, ou mock
-
-# Configure a API key correspondente
-ANTHROPIC_API_KEY=your_key_here
-# ou
-OPENAI_API_KEY=your_key_here
-
-# Habilitar assinatura (opcional)
-ENABLE_SIGNING=false
-```
+- `POST /translate` — endpoint HTTP principal
+- CLI: `minitradutor translate ...`
+- Suporte a tradução:
+  - Linguagens naturais (ex: `en`, `pt`, `ja`, `es`)
+  - Linguagens técnicas (ex: `"python"`, `"typescript"`, `"html"`)
+- Emissão de **translation_contract** com:
+  - `source_language`, `target_language`
+  - `source_text`, `translated_text`
+  - `workflow`, `flow`, `tenant_id`
+  - `method` (`human`, `machine`, `hybrid`)
+  - `confidence` (0.0–1.0)
+  - `provenance` (timestamp, tenant_id, assinatura opcional)
+- Ledger local em `output/contracts.ndjson` (1 linha JSON por contrato)
+- Assinatura opcional com Ed25519 (compatível com paradigma JSON✯Atomic)
+- Modo opcional **roundtrip** para testes de fidelidade semântica (ida e volta)
 
 ---
 
-## 🎯 Uso Rápido
+## 🧩 Modelo de dados: `translation_contract`
 
-### CLI
+### Gramática conceitual (BNF simplificada)
 
-#### Traduzir texto
+```bnf
+translation_contract   ::= "contract" "{"
+                              "id" ":" LogLineID ","
+                              "workflow" ":" WorkflowID ","
+                              "flow" ":" FlowID ","
+                              "source_language" ":" LanguageCode ","
+                              "target_language" ":" LanguageCode ","
+                              "source_text" ":" QuotedText ","
+                              "translated_text" ":" QuotedText ","
+                              [ "translator" ":" LogLineID "," ]
+                              [ "method" ":" TranslationMethod "," ]
+                              [ "confidence" ":" ConfidenceScore "," ]
+                              "provenance" ":" ProvenanceBlock
+                           "}"
 
-```bash
-# Tradução simples
-deno task cli translate --from en --to pt --input "Hello world"
+LanguageCode           ::= ISO639_1 | ISO639_3 | linguagem técnica ("python", "typescript", "html", etc.)
 
-# Tradução de código
-deno task cli translate --from python --to pt --input "def greet(): print('Hello')"
+QuotedText             ::= '"' { any_char } '"'
 
-# Tradução de arquivo
-deno task cli translate --from ja --to en --file input.txt
+TranslationMethod      ::= "human" | "machine" | "hybrid"
 
-# Modo roundtrip (teste de fidelidade)
-deno task cli translate --from pt --to en --input "O sistema é auditável" --mode roundtrip
+ConfidenceScore        ::= Float (0.0 – 1.0)
+
+ProvenanceBlock        ::= "{"
+                              "timestamp" ":" ISO8601 ","
+                              "tenant_id" ":" String ","
+                              "signature" ":" HexString
+                           "}"
 ```
 
-#### Gerar chaves de assinatura
-
-```bash
-deno task cli keygen
-```
-
-#### Ver configuração
-
-```bash
-deno task cli config
-```
-
-### API HTTP
-
-#### Iniciar servidor
-
-```bash
-deno task start
-```
-
-O servidor inicia em `http://localhost:8000`
-
-#### Fazer uma tradução via HTTP
-
-```bash
-curl -X POST http://localhost:8000/translate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source_language": "python",
-    "target_language": "pt",
-    "source_text": "def greet(): print('\''Hello'\'')",
-    "method": "machine",
-    "workflow": "docgen",
-    "flow": "translate_fn",
-    "tenant_id": "voulezvous"
-  }'
-```
-
-#### Resposta
+### Exemplo de saída
 
 ```json
 {
@@ -160,316 +96,223 @@ curl -X POST http://localhost:8000/translate \
 
 ---
 
-## 📚 Estrutura do Projeto
+## 🏗 Arquitetura
+
+Estrutura sugerida do projeto (pode variar de acordo com a implementação):
 
 ```
 minitradutor/
-├── api.ts                # Servidor HTTP (POST /translate)
-├── cli.ts                # Interface CLI
-├── mod.ts                # Entry point do módulo
-├── translate.ts          # Lógica de tradução + providers
-├── contract.ts           # Builder e validador de contratos
-├── schema.json           # JSON Schema do translation_contract
-├── signer.ts             # Assinatura Ed25519
-├── config.ts             # Gerenciamento de configuração
+├── api.ts                # Endpoint HTTP (POST /translate)
+├── cli.ts                # Interface de linha de comando
+├── translate.ts          # Função principal: input → translated_text
+├── ledger.ts             # Persiste contratos no NDJSON
+├── schema.json           # JSON Schema do contrato
+├── signer.ts             # Assinatura Ed25519 (opcional)
+├── providers/
+│   ├── types.ts          # Interfaces TypeScript
+│   └── openai.ts         # Provider LLM OpenAI
 ├── utils/
-│   ├── hash.ts           # Geração de hashes e IDs
-│   └── time.ts           # Geração de timestamps
+│   ├── hash.ts           # Gera trace_id / hash (ex: BLAKE3)
+│   └── time.ts           # Gera timestamp ISO8601 em UTC
+├── config.ts             # Config (providers, paths, flags)
 ├── output/
-│   └── contracts.ndjson  # Ledger de contratos (gerado)
-├── tests/
-│   └── contract.test.ts  # Testes automatizados
-├── deno.json             # Configuração Deno
-├── .env.example          # Template de configuração
-└── README.md             # Este arquivo
+│   └── contracts.ndjson  # Ledger local (append-only)
+└── tests/
+    └── contract.test.ts  # Testes do contrato e fluxo
 ```
 
----
-
-## 🔧 Configuração
-
-### Variáveis de Ambiente
-
-| Variável | Descrição | Valores | Padrão |
-|----------|-----------|---------|--------|
-| `LLM_PROVIDER` | Provider de LLM | `anthropic`, `openai`, `mock` | `mock` |
-| `ANTHROPIC_API_KEY` | API key da Anthropic | string | - |
-| `OPENAI_API_KEY` | API key da OpenAI | string | - |
-| `ENABLE_SIGNING` | Habilitar assinatura | `true`, `false` | `false` |
-| `ED25519_PRIVATE_KEY` | Chave privada (hex) | string | - |
-| `ED25519_PUBLIC_KEY` | Chave pública (hex) | string | - |
-| `LEDGER_PATH` | Caminho do ledger | path | `./output/contracts.ndjson` |
-| `PORT` | Porta do servidor | number | `8000` |
-| `HOST` | Host do servidor | string | `0.0.0.0` |
-| `DEFAULT_TENANT_ID` | Tenant padrão | string | `default` |
+Stack recomendada:
+- TypeScript
+- Deno (execução local preferencial, compatível com Node.js se necessário)
+- Provider de tradução:
+  - LLM externo (OpenAI, Ollama, etc.) ou
+  - Implementação mock / local
 
 ---
 
-## 🧪 Testes
+## 🚀 Como usar
 
-```bash
-# Executar todos os testes
-deno task test
+### 1. HTTP API
 
-# Executar com cobertura
-deno test --coverage=coverage tests/
+#### Request
 
-# Gerar relatório de cobertura
-deno coverage coverage/
-```
+```http
+POST /translate
+Content-Type: application/json
 
-### Matriz de Testes
-
-| Teste | Descrição | Status |
-|-------|-----------|--------|
-| T1 | Japonês → Inglês | ✅ |
-| T2 | Python → Português | ✅ |
-| T3 | Entrada inválida | ✅ |
-| T4 | method = "human" | ✅ |
-| T5 | Replay idempotente | ⏳ |
-| T6 | Ledger NDJSON válido | ✅ |
-| T7 | Assinatura desativada | ✅ |
-| T8 | Modo roundtrip | ✅ |
-
----
-
-## 📋 Translation Contract Schema
-
-Cada tradução gera um contrato com a seguinte estrutura:
-
-```typescript
 {
-  id: string;                  // "trans_XXXXXX"
-  workflow: string;            // Nome do workflow
-  flow: string;                // Nome do flow
-  source_language: string;     // Idioma de origem
-  target_language: string;     // Idioma de destino
-  source_text: string;         // Texto original
-  translated_text: string;     // Texto traduzido
-  translator?: string;         // Identificador do tradutor
-  method: "human" | "machine" | "hybrid";
-  confidence: number;          // 0.0 - 1.0
-  provenance: {
-    timestamp: string;         // ISO8601 UTC
-    tenant_id: string;         // ID do tenant
-    signature: string;         // Ed25519 signature (ou vazio)
+  "source_language": "python",
+  "target_language": "pt",
+  "source_text": "def greet(): print('Hello')",
+  "method": "machine",
+  "workflow": "docgen",
+  "flow": "translate_fn",
+  "tenant_id": "voulezvous"
+}
+```
+
+#### Response (200)
+
+```json
+{
+  "contract": {
+    "id": "trans_f2a7c8",
+    "workflow": "docgen",
+    "flow": "translate_fn",
+    "source_language": "python",
+    "target_language": "pt",
+    "source_text": "def greet(): print('Hello')",
+    "translated_text": "A função 'greet' imprime 'Hello'.",
+    "translator": "logline.model",
+    "method": "machine",
+    "confidence": 0.92,
+    "provenance": {
+      "timestamp": "2025-11-13T18:44:00Z",
+      "tenant_id": "voulezvous",
+      "signature": "ed25519:abc123..."
+    }
+  }
+}
+```
+
+#### Response (erro, 400)
+
+```json
+{
+  "error": "InvalidInput",
+  "message": "source_language is required",
+  "details": {
+    "field": "source_language"
   }
 }
 ```
 
 ---
 
-## 🔐 Assinatura Digital
+### 2. CLI
 
-### Gerar par de chaves
-
-```bash
-deno task cli keygen
-```
-
-Isso gera um par de chaves Ed25519 e imprime:
-
-```
-ED25519_PRIVATE_KEY=...hex...
-ED25519_PUBLIC_KEY=...hex...
-```
-
-### Habilitar assinatura
-
-Adicione ao `.env`:
+A CLI expõe o mesmo fluxo da API, mas via terminal:
 
 ```bash
-ENABLE_SIGNING=true
-ED25519_PRIVATE_KEY=your_private_key_hex
-```
+# Tradução simples
+minitradutor translate --from ja --to en --input texto.txt
 
-### Verificar assinatura
+# De código para linguagem natural
+minitradutor translate --from python --to pt --input "def greet(): print('Hello')"
 
-```typescript
-import { verifyContract, importPublicKey } from "./signer.ts";
-
-const publicKey = await importPublicKey("your_public_key_hex");
-const isValid = await verifyContract(contract, publicKey);
-console.log("Signature valid:", isValid);
-```
-
----
-
-## 🌊 Ciclo de Vida do Contrato
-
-```
-┌─────────┐    ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌────────┐    ┌──────────────┐
-│ Entrada │ -> │ Tradução │ -> │ Contrato │ -> │ Assinatura│ -> │ Ledger │ -> │Observabilidade│
-└─────────┘    └──────────┘    └──────────┘    └───────────┘    └────────┘    └──────────────┘
-```
-
-1. **Entrada**: Recebe texto + metadados
-2. **Tradução**: Executa via LLM/humano
-3. **Contrato**: Monta objeto estruturado
-4. **Assinatura**: Aplica Ed25519 (opcional)
-5. **Ledger**: Persiste em NDJSON
-6. **Observabilidade**: Permite auditoria posterior
-
----
-
-## 🔄 Modo Roundtrip
-
-Teste a fidelidade semântica com tradução ida-e-volta:
-
-```bash
-deno task cli translate \
-  --from pt \
-  --to en \
-  --input "O sistema é auditável" \
+# Modo roundtrip (ida e volta, para teste de fidelidade)
+minitradutor translate \
+  --from pt --to en \
+  --input "O sistema é auditável." \
   --mode roundtrip
 ```
 
 Saída:
-
-```
-Original:       O sistema é auditável
-Forward:        The system is auditable
-Back:           O sistema é auditável
-Semantic fidelity score: 95.2%
-```
+- Imprime o translation_contract no stdout
+- Sempre registra o contrato em output/contracts.ndjson
 
 ---
 
-## 📊 Ledger NDJSON
+## 🔄 Fluxo computável
 
-Todos os contratos são persistidos em `output/contracts.ndjson`:
+Fluxo conceitual do minitradutor:
 
-```jsonlines
-{"id":"trans_a1b2c3","workflow":"test",...}
-{"id":"trans_d4e5f6","workflow":"prod",...}
-{"id":"trans_g7h8i9","workflow":"qa",...}
+```
+Entrada → Tradução → Contrato → Assinatura → Ledger → Observabilidade
 ```
 
-Cada linha é um JSON válido e pode ser:
-- ✅ Revalidado contra o schema
-- 🔍 Auditado individualmente
-- 🔗 Linkado a outros spans no ecossistema LogLine
+1. **Entrada**
+   - Recebe source_language, target_language, source_text, workflow, flow, tenant_id, method.
+2. **Tradução**
+   - Provider (LLM / humano / híbrido) gera translated_text + confidence.
+3. **Contrato**
+   - Montagem de um translation_contract com todos os campos.
+4. **Assinatura (opcional)**
+   - Assinatura Ed25519, ex: ed25519:<hex>.
+5. **Ledger**
+   - Append em output/contracts.ndjson (uma linha JSON por contrato).
+6. **Observabilidade**
+   - Cada contrato pode ser revalidado, reexecutado ou vinculado a outros spans.
 
 ---
 
-## 🛠️ Desenvolvimento
+## ✅ Regras obrigatórias
 
-### Formatar código
-
-```bash
-deno task fmt
-```
-
-### Lint
-
-```bash
-deno task lint
-```
-
-### Type check
-
-```bash
-deno task check
-```
-
-### Modo watch (desenvolvimento)
-
-```bash
-deno task dev
-```
+- Toda tradução gera:
+  - Um translation_contract válido ou um erro JSON bem estruturado.
+  - confidence sempre presente (0.0–1.0).
+  - provenance.timestamp sempre em ISO8601 UTC.
+  - provenance.tenant_id nunca vazio.
+- output/contracts.ndjson é append-only.
+- Erros devem ser logados em formato JSON com:
+  - error, message, timestamp, trace_id (opcional).
 
 ---
 
-## 📖 Exemplos
+## 🧪 Testes recomendados
 
-### Exemplo 1: Tradução simples (CLI)
-
-```bash
-deno task cli translate \
-  --from en \
-  --to pt \
-  --input "The quick brown fox jumps over the lazy dog"
-```
-
-### Exemplo 2: Tradução de código (API)
-
-```bash
-curl -X POST http://localhost:8000/translate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source_language": "javascript",
-    "target_language": "python",
-    "source_text": "const sum = (a, b) => a + b;",
-    "tenant_id": "my-org",
-    "workflow": "code-migration",
-    "flow": "js-to-py"
-  }'
-```
-
-### Exemplo 3: Tradução humana
-
-```bash
-deno task cli translate \
-  --from en \
-  --to pt \
-  --input "Terms and Conditions" \
-  --method human \
-  --translator "maria.silva@example.com"
-```
+| Teste | Cenário | Esperado |
+|-------|---------|----------|
+| T1 | Japonês → Inglês | Tradução clara, confidence > 0.8 |
+| T2 | Python → Português | Tradução descritiva correta do código |
+| T3 | Entrada inválida | HTTP 400 + JSON de erro com motivo claro |
+| T4 | method = "human" | Campo translator obrigatório e validado |
+| T5 | Replay com mesmo input/flow | Contrato idempotente ou marcado com replay_of |
+| T6 | Ledger NDJSON | Cada linha é JSON válido, validável com schema.json |
+| T7 | Assinatura desativada | signature vazio, contrato ainda válido |
+| T8 | Modo roundtrip | Calcula score de fidelidade semântica ida/volta |
 
 ---
 
-## 🚧 Roadmap
+## 🔬 Modo opcional: roundtrip (mirror)
 
-- [ ] Suporte a mais providers (Ollama, Google Translate, etc.)
-- [ ] Integração com ecossistema LogLine (spans, trajectories)
-- [ ] CLI interativa com prompts
-- [ ] Dashboard web para visualização de contratos
-- [ ] Batch translation de múltiplos arquivos
-- [ ] Plugins para editores (VSCode, Vim)
-- [ ] Métricas de qualidade e confiança aprimoradas
+Modo para testar fidelidade semântica de ida e volta.
+
+### Exemplo de request
+
+```json
+{
+  "mode": "roundtrip",
+  "source_language": "pt",
+  "target_language": "en",
+  "source_text": "O sistema é auditável.",
+  "roundtrip_target": "pt",
+  "workflow": "qa",
+  "flow": "roundtrip_test",
+  "tenant_id": "voulezvous",
+  "method": "machine"
+}
+```
+
+### Esperado
+- Contrato da tradução direta (pt → en)
+- Tradução reversa (en → pt)
+- Campo de score de fidelidade (ex: roundtrip_score: 0.87), seja no contrato principal ou em metadados adicionais.
 
 ---
 
-## 🤝 Contribuindo
+## 🌐 Integração futura com LogLine
 
-Contribuições são bem-vindas! Por favor:
+O minitradutor foi pensado para plugar direto no ecossistema LogLine. Em versões futuras, ele deve:
+- Emitir spans:
+  - register_app para registrar minitradutor
+  - register_contract para contracts de tradução
+  - register_trajectory para sequências (roundtrip, revisões, etc.)
+- Permitir link_entity entre:
+  - Traduções e documentos de origem
+  - Contratos e execuções de pipelines
+  - Usuários / tradutores humanos
 
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/amazing`)
-3. Commit suas mudanças (`git commit -m 'Add amazing feature'`)
-4. Push para a branch (`git push origin feature/amazing`)
-5. Abra um Pull Request
+---
+
+## 🧠 Uso com LLMs autônomos
+
+Prompt recomendado para operar LLMs internamente:
+
+> "Dado um texto de entrada, o idioma de origem e o idioma de destino, gere um objeto JSON válido do tipo translation_contract, obedecendo ao JSON Schema fornecido. Priorize mínima perda semântica, complete todos os campos obrigatórios, estime o campo confidence (0.0–1.0) e inclua provenance com timestamp ISO8601 atual, tenant_id e signature (pode ser vazia se a assinatura estiver desativada)."
 
 ---
 
 ## 📄 Licença
 
-Apache 2.0 (ou dual license com LogLineID)
-
----
-
-## 👥 Autores
-
-- **LogLine Foundation** - [https://logline.foundation](https://logline.foundation)
-- **VoulezVous** - Initial development
-
----
-
-## 🙏 Agradecimentos
-
-- Inspirado no ecossistema JSON✯Atomic
-- Construído com [Deno](https://deno.land)
-- Suporte para Anthropic Claude e OpenAI GPT
-
----
-
-## 📞 Suporte
-
-- 📧 Email: support@logline.foundation
-- 🐛 Issues: [GitHub Issues](https://github.com/logline/minitradutor/issues)
-- 💬 Discord: [LogLine Community](https://discord.gg/logline)
-
----
-
-**Minitradutor** - Tradução como contrato computável. 🌐✨
+Este projeto é licenciado sob os termos da **Apache 2.0**, ou modelo dual definido pela LogLine Foundation.
